@@ -1,0 +1,40 @@
+{
+	"name": "vm0002",
+	"cpus": 2,
+	"memory": 2048,
+	"console": "/dev/nmdm0002A",
+	"loader": "grub-bhyve",
+	"loader_args": "-m linux.map -r hd0,msdos1",
+	"loader_input": "linux /vmlinuz-2.6.32-431.el6.x86_64 root=/dev/mapper/VolGroup-lv_root\\ninitrd /initramfs-2.6.32-431.el6.x86_64.img\\nboot\\n",
+	"disks": [
+	{
+		"type": "ahci-hd",
+		"path": "/dev/zvol/bsdb1/vm/vm0002/disks/disk0002"
+	}
+	],
+	"networks": [
+	{
+		"type": "virtio-net",
+		"name": "tap7",
+		"mac": "58:9c:fc:04:8d:3d"
+	}
+	],
+	"devices": [
+	{
+		"slot": "0:0",
+		"type": "hostbridge"
+	},
+	{
+		"slot": "1:0",
+		"type": "lpc"
+	}
+	],
+	"features": [
+		"acpi",
+		"vmexithlt",
+		"vmexitpause",
+		"ignoremsr"
+	],
+	"flags": [
+	]
+}
