@@ -28,33 +28,35 @@
 #
 
 : ${DEBUG:=0}
-: ${JQ_CMD:=jq --raw-output}
+: ${JQ_CMD:=/usr/local/bin/jq --raw-output}
 : ${BHYVE_CMD:=/usr/sbin/bhyve}
 : ${BHYVE_FLAGS=}
 : ${BHYVE_LOAD_CMD:=/usr/sbin/bhyveload}
 : ${BHYVE_LOAD_FLAGS=}
+: ${BHYVE_GRUB_CMD:=/usr/local/sbin/grub-bhyve}
+: ${BHYVE_GRUB_FLAGS=}
 
 
 kldstat -n vmm > /dev/null 2>&1 
 if [ $? -ne 0 ]; then
-	echo "vmm.ko is not loaded!"
+	echo "Error: vmm.ko is not loaded!"
 	exit 1
 fi
 
 if [ $# -ne 1 ]; then
-	echo "path to config file required"
+	echo "Error: path to config file required"
 	exit 2
 fi
 
 CONF="$1"
 if [ ! -f "$CONF" ]; then
-	echo "cannot read config file"
+	echo "Error: cannot read config file"
 	exit 3
 fi
 
-cat "$CONF" | jq "." > /dev/null
+jq "." "$CONF" > /dev/null
 if [ $? != 0 ]; then
-	echo "error parsing config file"
+	echo "Error: error parsing config file"
 	exit 4
 fi
 
@@ -101,16 +103,22 @@ bhyve_parse_features()
 bhyve_parse_flags()
 {
 	local flags type
+	[ $num_flags -le 0 ] && return
 	for n in $(jot $num_flags 0); do
-		type=$(cat "$CONF" | $JQ_CMD ".flags[${n}] | to_entries[0] .value | type")
+		type=$($JQ_CMD ".flags[${n}] | to_entries[0] .value | type" "$CONF")
 		if [ "$type" = "string" ]; then
-			bhyve_load_vars "_key _value" $(cat "$CONF" | $JQ_CMD ".flags[${n}] | to_entries[0] | .key, .value")
-			flags="${flags}${_key} "${_value}" "
+			bhyve_load_vars "_key _value" ".flags[${n}] | to_entries[0] | .key, .value"
+			flags="${flags}${_key} '"${_value}"' "
 		elif [ "$type" = "array" ]; then
-			_key=$(cat "$CONF" | $JQ_CMD ".flags[${n}] | to_entries[0] | .key")
-			for v in $(cat "$CONF" | $JQ_CMD ".flags[${n}] | to_entries[0] | .value[]"); do
-				flags="${flags}${_key} "${v}" "
+			_key=$($JQ_CMD ".flags[${n}] | to_entries[0] | .key" "$CONF")
+			local parse
+			parse=$($JQ_CMD ".flags[${n}] | to_entries[0] | .value[]" "$CONF")
+			oIFS=$IFS
+			IFS=$'\n'
+			for v in $parse; do
+				flags="${flags}${_key} '"${v}"' "
 			done
+			IFS=$oIFS
 		else
 			echo "Error: Unknown object type in flags"
 			exit 6
@@ -122,14 +130,30 @@ bhyve_parse_flags()
 
 bhyve_load_vars()
 {
+	local parse
+	parse=$($JQ_CMD "$2" "$CONF")
+
+	oIFS=$IFS
+	IFS=$'\n'
+
+	bhyve_load_newline "$1" $parse
+
+	IFS=$oIFS
+}
+
+bhyve_load_newline()
+{
 	local vlist
 	vlist="$1"
-	shift
+	shift 1
+
+	IFS=$oIFS
+
 	for v in $vlist; do
 		if [ "$DEBUG" -gt 0 ]; then
 			echo "setting $v to '$1'"
 		fi
-		export $v=$1;
+		export $v="$1";
 		shift
 	done
 }
@@ -142,6 +166,7 @@ bhyve_parse_dev()
 	srcvlist="$3"
 	vlist=""
 	shift 3
+	[ $numdev -le 0 ] && return
 	for n in $(jot $numdev 0); do
 		vlist=""
 		dlist=""
@@ -151,7 +176,7 @@ bhyve_parse_dev()
 		done
 		vlist=${vlist%% }
 		dlist=${dlist%%, }
-		bhyve_load_vars "$vlist" $(cat "$CONF" | $JQ_CMD ".${tree}[${n}] | ${dlist}")
+		bhyve_load_vars "$vlist" ".${tree}[${n}] | ${dlist}"
 		eval _slot="\$bhyve_${tree}_${n}_slot"
 		eval _type="\$bhyve_${tree}_${n}_type"
 		eval _conf="\$bhyve_${tree}_${n}_conf"
@@ -176,6 +201,7 @@ bhyve_parse_nic()
 	srcvlist="$3"
 	vlist=""
 	shift 3
+	[ $numdev -le 0 ] && return
 	for n in $(jot $numdev 0); do
 		vlist=""
 		dlist=""
@@ -185,7 +211,7 @@ bhyve_parse_nic()
 		done
 		vlist=${vlist%% }
 		dlist=${dlist%%, }
-		bhyve_load_vars "$vlist" $(cat "$CONF" | $JQ_CMD ".${tree}[${n}] | ${dlist}")
+		bhyve_load_vars "$vlist" ".${tree}[${n}] | ${dlist}"
 		# Autogenerate slot number
 		_slot="$__SLOT"
 		__SLOT=$(( $__SLOT + 1))
@@ -214,6 +240,7 @@ bhyve_parse_disk()
 	srcvlist="$3"
 	vlist=""
 	shift 3
+	[ $numdev -le 0 ] && return
 	for n in $(jot $numdev 0); do
 		vlist=""
 		dlist=""
@@ -223,16 +250,16 @@ bhyve_parse_disk()
 		done
 		vlist=${vlist%% }
 		dlist=${dlist%%, }
-		bhyve_load_vars "$vlist" $(cat "$CONF" | $JQ_CMD ".${tree}[${n}] | ${dlist}")
+		bhyve_load_vars "$vlist" ".${tree}[${n}] | ${dlist}"
 		# Autogenerate slot number
 		_slot="$__SLOT"
 		__SLOT=$(( $__SLOT + 1))
 		eval _type="\$bhyve_${tree}_${n}_type"
 		# Generate configuration
 		eval _path="\$bhyve_${tree}_${n}_path"
-		_flags=$(cat "$CONF" | $JQ_CMD ".${tree}[${n}] | .flags")
+		_flags=$($JQ_CMD ".${tree}[${n}] | .flags" "$CONF")
 		if [ "$_flags" != "null" ]; then
-			_flags=$(cat "$CONF" | $JQ_CMD ".${tree}[${n}] | .flags[]")
+			_flags=$($JQ_CMD ".${tree}[${n}] | .flags[]" "$CONF")
 			_conf="${_path}"
 			for f in "$_flags"; do
 				_conf="${_conf},$f"
@@ -252,7 +279,6 @@ varlist="VMNAME VMUUID VMCPUS VMMEMORY VMCONSOLE \
 	VMLOADER VMLOADER_ARGS VMLOADER_INPUT"
 allvarlist="${varlist} VMFEATURES VMFLAGS VMDEV VMNIC VMDISK"
 
-
 VMFEATURES=""
 VMFLAGS=""
 VMDEV=""
@@ -262,30 +288,32 @@ VMDISK=""
 # Where to start auto-assigning slot numbers
 __SLOT=5
 
-confdata=$(cat "$CONF" | $JQ_CMD ".name, .uuid, .cpus, .memory, .console, \
-	.loader, .loader_args, .loader_input")
-
-bhyve_load_vars "$varlist" $confdata
+bhyve_load_vars "$varlist" ".name, .uuid, .cpus, .memory, .console, \
+	.loader, .loader_args, .loader_input"
 
 # Add flags for features
-features=$(cat "$CONF" | $JQ_CMD ".features[]")
+features=$($JQ_CMD ".features[]" "$CONF")
 bhyve_parse_features $features
 
 # Add other flags
-num_flags=$(cat "$CONF" | $JQ_CMD ".flags | length")
+num_flags=$($JQ_CMD ".flags | length" "$CONF")
 bhyve_parse_flags
 
 # Add flags for devices
-num_dev=$(cat "$CONF" | $JQ_CMD ".devices | length")
+num_dev=$($JQ_CMD ".devices | length" "$CONF")
 bhyve_parse_dev "devices" "$num_dev" "slot type conf"
 
 # Add flags for network cards
-num_nic=$(cat "$CONF" | $JQ_CMD ".networks | length")
+num_nic=$($JQ_CMD ".networks | length" "$CONF")
 bhyve_parse_nic "networks" "$num_nic" "type name mac"
 
 # Add flags for disks
-num_disk=$(cat "$CONF" | $JQ_CMD ".disks | length")
+num_disk=$($JQ_CMD ".disks | length" "$CONF")
 bhyve_parse_disk "disks" "$num_disk" "type path"
+
+if [ "$VMUUID" = "null" ]; then
+	VMUUID=$(/bin/uuidgen)
+fi
 
 # Remove trailing spaces
 VMFEATURES=${VMFEATURES%% }
@@ -301,24 +329,37 @@ if [ "$DEBUG" -gt 0 ]; then
 	done
 fi
 
-echo "bhyve load command:"
-echo ${BHYVE_LOAD_CMD} ${BHYVE_LOAD_FLAGS} \
-	-c com1,${VMCONSOLE} \
-	-m ${VMMEMORY}M \
-	-d ${bhyve_disks_0_path} \
-	${VMNAME}
 
 echo
+
+if [ "$VMLOADER" = "grub-bhyve" ]; then
+	echo "bhyve grub load command:"
+	echo printf "${VMLOADER_INPUT}" \| \
+		${BHYVE_GRUB_CMD} ${BHYVE_GRUB_FLAGS} \
+		-M ${VMMEMORY}M \
+		${VMLOADER_ARGS} \
+		${VMNAME}
+else
+	echo "bhyve load command:"
+	echo ${BHYVE_LOAD_CMD} ${BHYVE_LOAD_FLAGS} \
+		-c com1,${VMCONSOLE} \
+		-m ${VMMEMORY}M \
+		-d ${bhyve_disks_0_path} \
+		${VMNAME}
+fi
+
 echo
 echo "bhyve run command:"
 echo ${BHYVE_CMD} ${BHYVE_FLAGS} \
 	-c ${VMCPUS} \
 	-l com1,${VMCONSOLE} \
 	-m ${VMMEMORY}M \
-	-U ${UUID} \
+	-U ${VMUUID} \
 	${VMFEATURES} \
 	${VMFLAGS} \
 	${VMDEV} \
 	${VMNIC} \
 	${VMDISK} \
 	${VMNAME}
+
+echo
