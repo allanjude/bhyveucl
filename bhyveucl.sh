@@ -28,7 +28,7 @@
 #
 
 : ${DEBUG:=0}
-: ${JQ_CMD:=/usr/local/bin/jq --raw-output}
+: ${UCL_CMD:=/usr/local/bin/uclcmd --raw}
 : ${BHYVE_CMD:=/usr/sbin/bhyve}
 : ${BHYVE_FLAGS=}
 : ${BHYVE_LOAD_CMD:=/usr/sbin/bhyveload}
@@ -54,7 +54,7 @@ if [ ! -f "$CONF" ]; then
 	exit 3
 fi
 
-jq "." "$CONF" > /dev/null
+$UCL_CMD --file "$CONF" "" > /dev/null
 if [ $? != 0 ]; then
 	echo "Error: error parsing config file"
 	exit 4
@@ -105,14 +105,14 @@ bhyve_parse_flags()
 	local flags type
 	[ $num_flags -le 0 ] && return
 	for n in $(jot $num_flags 0); do
-		type=$($JQ_CMD ".flags[${n}] | to_entries[0] .value | type" "$CONF")
+		type=$($UCL_CMD --file "$CONF" ".flags.${n}|each|type")
 		if [ "$type" = "string" ]; then
-			bhyve_load_vars "_key _value" ".flags[${n}] | to_entries[0] | .key, .value"
+			bhyve_load_vars "_key _value" ".flags.${n}|keys" ".flags.${n}|values"
 			flags="${flags}${_key} '"${_value}"' "
 		elif [ "$type" = "array" ]; then
-			_key=$($JQ_CMD ".flags[${n}] | to_entries[0] | .key" "$CONF")
+			_key=$($UCL_CMD --file "$CONF" ".flags.${n}|keys")
 			local parse
-			parse=$($JQ_CMD ".flags[${n}] | to_entries[0] | .value[]" "$CONF")
+			parse=$($UCL_CMD --file "$CONF" ".flags.${n}.${_key}|values")
 			oIFS=$IFS
 			IFS=$'\n'
 			for v in $parse; do
@@ -130,13 +130,15 @@ bhyve_parse_flags()
 
 bhyve_load_vars()
 {
-	local parse
-	parse=$($JQ_CMD "$2" "$CONF")
+	local parse result
+        result=$1;
+        shift
+	parse=$($UCL_CMD --file "$CONF" $@)
 
 	oIFS=$IFS
 	IFS=$'\n'
 
-	bhyve_load_newline "$1" $parse
+	bhyve_load_newline "$result" $parse
 
 	IFS=$oIFS
 }
@@ -172,11 +174,11 @@ bhyve_parse_dev()
 		dlist=""
 		for v in $srcvlist; do
 			vlist="${vlist}bhyve_${tree}_${n}_${v} "
-			dlist="${dlist}.${v}, "
+			dlist="${dlist}.${tree}.${n}.${v} "
 		done
 		vlist=${vlist%% }
-		dlist=${dlist%%, }
-		bhyve_load_vars "$vlist" ".${tree}[${n}] | ${dlist}"
+		dlist=${dlist%% }
+		bhyve_load_vars "$vlist" ${dlist}
 		eval _slot="\$bhyve_${tree}_${n}_slot"
 		eval _type="\$bhyve_${tree}_${n}_type"
 		eval _conf="\$bhyve_${tree}_${n}_conf"
@@ -207,11 +209,11 @@ bhyve_parse_nic()
 		dlist=""
 		for v in $srcvlist; do
 			vlist="${vlist}bhyve_${tree}_${n}_${v} "
-			dlist="${dlist}.${v}, "
+			dlist="${dlist}.${tree}.${n}.${v} "
 		done
 		vlist=${vlist%% }
-		dlist=${dlist%%, }
-		bhyve_load_vars "$vlist" ".${tree}[${n}] | ${dlist}"
+		dlist=${dlist%% }
+		bhyve_load_vars "$vlist" ${dlist}
 		# Autogenerate slot number
 		_slot="$__SLOT"
 		__SLOT=$(( $__SLOT + 1))
@@ -246,20 +248,20 @@ bhyve_parse_disk()
 		dlist=""
 		for v in $srcvlist; do
 			vlist="${vlist}bhyve_${tree}_${n}_${v} "
-			dlist="${dlist}.${v}, "
+			dlist="${dlist}.${tree}.${n}.${v} "
 		done
 		vlist=${vlist%% }
-		dlist=${dlist%%, }
-		bhyve_load_vars "$vlist" ".${tree}[${n}] | ${dlist}"
+		dlist=${dlist%% }
+		bhyve_load_vars "$vlist" ${dlist}
 		# Autogenerate slot number
 		_slot="$__SLOT"
 		__SLOT=$(( $__SLOT + 1))
 		eval _type="\$bhyve_${tree}_${n}_type"
 		# Generate configuration
 		eval _path="\$bhyve_${tree}_${n}_path"
-		_flags=$($JQ_CMD ".${tree}[${n}] | .flags" "$CONF")
+		_flags=$($UCL_CMD --file  "$CONF" ".${tree}.${n}.flags")
 		if [ "$_flags" != "null" ]; then
-			_flags=$($JQ_CMD ".${tree}[${n}] | .flags[]" "$CONF")
+			_flags=$($UCL_CMD --file "$CONF" ".${tree}.${n}.flags|values")
 			_conf="${_path}"
 			for f in "$_flags"; do
 				_conf="${_conf},$f"
@@ -288,27 +290,27 @@ VMDISK=""
 # Where to start auto-assigning slot numbers
 __SLOT=5
 
-bhyve_load_vars "$varlist" ".name, .uuid, .cpus, .memory, .console, \
-	.loader, .loader_args, .loader_input"
+bhyve_load_vars "$varlist" ".name" ".uuid" ".cpus" ".memory" ".console" \
+	".loader" ".loader_args" ".loader_input"
 
 # Add flags for features
-features=$($JQ_CMD ".features[]" "$CONF")
+features=$($UCL_CMD --file "$CONF" ".features|values")
 bhyve_parse_features $features
 
 # Add other flags
-num_flags=$($JQ_CMD ".flags | length" "$CONF")
+num_flags=$($UCL_CMD --file "$CONF" ".flags|length")
 bhyve_parse_flags
 
 # Add flags for devices
-num_dev=$($JQ_CMD ".devices | length" "$CONF")
+num_dev=$($UCL_CMD --file "$CONF" ".devices|length")
 bhyve_parse_dev "devices" "$num_dev" "slot type conf"
 
 # Add flags for network cards
-num_nic=$($JQ_CMD ".networks | length" "$CONF")
+num_nic=$($UCL_CMD --file "$CONF" ".networks|length")
 bhyve_parse_nic "networks" "$num_nic" "type name mac"
 
 # Add flags for disks
-num_disk=$($JQ_CMD ".disks | length" "$CONF")
+num_disk=$($UCL_CMD --file "$CONF" ".disks|length")
 bhyve_parse_disk "disks" "$num_disk" "type path"
 
 if [ "$VMUUID" = "null" ]; then
