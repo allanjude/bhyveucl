@@ -4,7 +4,8 @@ bhyveucl
 Script for starting bhyve instances based on a 
 [libUCL](https://github.com/vstakhov/libucl/) config file
 
-The tools to work with UCL from the command line is very immature, so initial
+The tools to work with UCL [uclcmd](https://github.com/allanjude/uclcmd) from
+the command line is very immature, so initial
 versions of this script used [jq](http://stedolan.github.io/jq/) to parse JSON
 instead. See the jq branch for the old code. Generalizing the script to be
 compatible with both tools is not my goal, but the old version may be useful
