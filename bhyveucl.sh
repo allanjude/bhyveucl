@@ -108,7 +108,7 @@ bhyve_parse_flags()
 		type=$($UCL_CMD --file "$CONF" ".flags.${n}|each|type")
 		if [ "$type" = "string" ]; then
 			bhyve_load_vars "_key _value" ".flags.${n}|keys" ".flags.${n}|values"
-			flags="${flags}${_key} '"${_value}"' "
+			flags="${flags}-${_key} '"${_value}"' "
 		elif [ "$type" = "array" ]; then
 			_key=$($UCL_CMD --file "$CONF" ".flags.${n}|keys")
 			local parse
@@ -116,7 +116,7 @@ bhyve_parse_flags()
 			oIFS=$IFS
 			IFS=$'\n'
 			for v in $parse; do
-				flags="${flags}${_key} '"${v}"' "
+				flags="${flags}-${_key} '"${v}"' "
 			done
 			IFS=$oIFS
 		else
