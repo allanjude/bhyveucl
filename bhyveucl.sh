@@ -28,7 +28,7 @@
 #
 
 : ${DEBUG:=0}
-: ${UCL_CMD:=/usr/local/bin/uclcmd --raw}
+: ${UCL_CMD:=/usr/local/bin/uclcmd --noquote}
 : ${BHYVE_CMD:=/usr/sbin/bhyve}
 : ${BHYVE_FLAGS=}
 : ${BHYVE_LOAD_CMD:=/usr/sbin/bhyveload}
