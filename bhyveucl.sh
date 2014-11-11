@@ -28,6 +28,7 @@
 #
 
 : ${DEBUG:=0}
+: ${BOOTDISK:=0}
 : ${UCL_CMD:=/usr/local/bin/uclcmd --noquote}
 : ${BHYVE_CMD:=/usr/sbin/bhyve}
 : ${BHYVE_FLAGS=}
@@ -42,6 +43,18 @@ if [ $? -ne 0 ]; then
 	echo "Error: vmm.ko is not loaded!"
 	exit 1
 fi
+
+while getopts b:d: c ; do
+        case $c in
+        b)
+                BOOTDISK="${OPTARG}"
+                ;;
+        d)
+                DEBUG="${OPTARG}"
+                ;;
+        esac
+done
+shift $((${OPTIND} - 1))
 
 if [ $# -ne 1 ]; then
 	echo "Error: path to config file required"
@@ -108,7 +121,7 @@ bhyve_parse_flags()
 		type=$($UCL_CMD --file "$CONF" ".flags.${n}|each|type")
 		if [ "$type" = "string" ]; then
 			bhyve_load_vars "_key _value" ".flags.${n}|keys" ".flags.${n}|values"
-			flags="${flags}-${_key} '"${_value}"' "
+			flags="${flags}-${_key} "${_value}" "
 		elif [ "$type" = "array" ]; then
 			_key=$($UCL_CMD --file "$CONF" ".flags.${n}|keys")
 			local parse
@@ -116,7 +129,7 @@ bhyve_parse_flags()
 			oIFS=$IFS
 			IFS=$'\n'
 			for v in $parse; do
-				flags="${flags}-${_key} '"${v}"' "
+				flags="${flags}-${_key} "${v}" "
 			done
 			IFS=$oIFS
 		else
@@ -152,7 +165,7 @@ bhyve_load_newline()
 	IFS=$oIFS
 
 	for v in $vlist; do
-		if [ "$DEBUG" -gt 0 ]; then
+		if [ $DEBUG -gt 0 ]; then
 			echo "setting $v to '$1'"
 		fi
 		export $v="$1";
@@ -278,7 +291,7 @@ bhyve_parse_disk()
 }
 
 varlist="VMNAME VMUUID VMCPUS VMMEMORY VMCONSOLE \
-	VMLOADER VMLOADER_ARGS VMLOADER_INPUT"
+	VMBOOTDISK VMLOADER VMLOADER_ARGS VMLOADER_INPUT"
 allvarlist="${varlist} VMFEATURES VMFLAGS VMDEV VMNIC VMDISK"
 
 VMFEATURES=""
@@ -291,7 +304,7 @@ VMDISK=""
 __SLOT=5
 
 bhyve_load_vars "$varlist" ".name" ".uuid" ".cpus" ".memory" ".console" \
-	".loader" ".loader_args" ".loader_input"
+	".disks.${BOOTDISK}.path" ".loader" ".loader_args" ".loader_input" 
 
 # Add flags for features
 features=$($UCL_CMD --file "$CONF" ".features|values")
@@ -324,35 +337,39 @@ VMDEV=${VMDEV%% }
 VMNIC=${VMNIC%% }
 VMDISK=${VMDISK%% }
 
-if [ "$DEBUG" -gt 0 ]; then
+if [ $DEBUG -gt 0 ]; then
 	for d in $allvarlist; do
 		eval val=\$$d
 		echo "$d='$val'"
 	done
 fi
 
+if [ $DEBUG -gt 0 ]; then
+    BHYVE_GRUB_CMD="echo ${BHYVE_GRUB_CMD}"
+    BHYVE_LOAD_CMD="echo ${BHYVE_LOAD_CMD}"
+    BHYVE_CMD="echo ${BHYVE_CMD}"
+fi
 
 echo
-
 if [ "$VMLOADER" = "grub-bhyve" ]; then
-	echo "bhyve grub load command:"
+	echo "Running grub-bhyve:"
 	echo printf "${VMLOADER_INPUT}" \| \
 		${BHYVE_GRUB_CMD} ${BHYVE_GRUB_FLAGS} \
 		-M ${VMMEMORY}M \
 		${VMLOADER_ARGS} \
 		${VMNAME}
 else
-	echo "bhyve load command:"
-	echo ${BHYVE_LOAD_CMD} ${BHYVE_LOAD_FLAGS} \
+	echo "Running bhyveload:"
+	${BHYVE_LOAD_CMD} ${BHYVE_LOAD_FLAGS} \
 		-c com1,${VMCONSOLE} \
 		-m ${VMMEMORY}M \
-		-d ${bhyve_disks_0_path} \
+                -d ${VMBOOTDISK} \
 		${VMNAME}
 fi
 
 echo
-echo "bhyve run command:"
-echo ${BHYVE_CMD} ${BHYVE_FLAGS} \
+echo "Running bhyve:"
+${BHYVE_CMD} ${BHYVE_FLAGS} \
 	-c ${VMCPUS} \
 	-l com1,${VMCONSOLE} \
 	-m ${VMMEMORY}M \
@@ -364,4 +381,6 @@ echo ${BHYVE_CMD} ${BHYVE_FLAGS} \
 	${VMDISK} \
 	${VMNAME}
 
+echo
+echo "bhyveucl exiting..."
 echo
