@@ -344,6 +344,12 @@ if [ $DEBUG -gt 1 ]; then
 	done
 fi
 
+if [ "$VMCONSOLE" = "stdio" ]; then
+    # If using a serial console, send bhyve to the background
+    BHYVE_CMD="nohup ${BHYVE_CMD}"
+    VMNAME="${VMNAME} 2>&1 > ${VMNAME}.out &"
+fi
+
 if [ $DEBUG -gt 0 ]; then
     BHYVE_GRUB_CMD="echo ${BHYVE_GRUB_CMD}"
     BHYVE_LOAD_CMD="echo ${BHYVE_LOAD_CMD}"
