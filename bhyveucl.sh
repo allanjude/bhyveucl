@@ -335,23 +335,22 @@ fi
 echo
 
 if [ "$VMLOADER" = "grub-bhyve" ]; then
-	echo "bhyve grub load command:"
+	echo -n "bhyve_grub_load_command:"
 	echo printf "${VMLOADER_INPUT}" \| \
 		${BHYVE_GRUB_CMD} ${BHYVE_GRUB_FLAGS} \
 		-M ${VMMEMORY}M \
 		${VMLOADER_ARGS} \
 		${VMNAME}
 else
-	echo "bhyve load command:"
+	echo -n "bhyve_load_command:"
 	echo ${BHYVE_LOAD_CMD} ${BHYVE_LOAD_FLAGS} \
-		-c com1,${VMCONSOLE} \
+		-c ${VMCONSOLE} \
 		-m ${VMMEMORY}M \
 		-d ${bhyve_disks_0_path} \
 		${VMNAME}
 fi
 
-echo
-echo "bhyve run command:"
+echo -n "bhyve_run_command:"
 echo ${BHYVE_CMD} ${BHYVE_FLAGS} \
 	-c ${VMCPUS} \
 	-l com1,${VMCONSOLE} \
@@ -363,5 +362,3 @@ echo ${BHYVE_CMD} ${BHYVE_FLAGS} \
 	${VMNIC} \
 	${VMDISK} \
 	${VMNAME}
-
-echo
