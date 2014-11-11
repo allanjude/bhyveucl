@@ -165,7 +165,7 @@ bhyve_load_newline()
 	IFS=$oIFS
 
 	for v in $vlist; do
-		if [ $DEBUG -gt 0 ]; then
+		if [ $DEBUG -gt 1 ]; then
 			echo "setting $v to '$1'"
 		fi
 		export $v="$1";
@@ -337,7 +337,7 @@ VMDEV=${VMDEV%% }
 VMNIC=${VMNIC%% }
 VMDISK=${VMDISK%% }
 
-if [ $DEBUG -gt 0 ]; then
+if [ $DEBUG -gt 1 ]; then
 	for d in $allvarlist; do
 		eval val=\$$d
 		echo "$d='$val'"
@@ -361,7 +361,7 @@ if [ "$VMLOADER" = "grub-bhyve" ]; then
 else
 	echo "Running bhyveload:"
 	${BHYVE_LOAD_CMD} ${BHYVE_LOAD_FLAGS} \
-		-c com1,${VMCONSOLE} \
+		-c ${VMCONSOLE} \
 		-m ${VMMEMORY}M \
                 -d ${VMBOOTDISK} \
 		${VMNAME}
