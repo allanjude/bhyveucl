@@ -344,7 +344,7 @@ if [ $DEBUG -gt 1 ]; then
 	done
 fi
 
-if [ "$VMCONSOLE" = "stdio" ]; then
+if [ "$VMCONSOLE" != "stdio" ]; then
     # If using a serial console, send bhyve to the background
     BHYVE_CMD="nohup ${BHYVE_CMD}"
     VMNAME="${VMNAME} 2>&1 > ${VMNAME}.out &"
