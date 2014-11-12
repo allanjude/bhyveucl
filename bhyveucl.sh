@@ -347,7 +347,7 @@ fi
 if [ "$VMCONSOLE" != "stdio" ]; then
     # If using a serial console, send bhyve to the background
     BHYVE_CMD="nohup ${BHYVE_CMD}"
-    VMNAME="${VMNAME} 2>&1 > ${VMNAME}.out &"
+    RUN_SUFFIX="2>&1 > ${VMNAME}.out &"
 fi
 
 if [ $DEBUG -gt 0 ]; then
@@ -385,7 +385,7 @@ ${BHYVE_CMD} ${BHYVE_FLAGS} \
 	${VMDEV} \
 	${VMNIC} \
 	${VMDISK} \
-	${VMNAME}
+	${VMNAME} ${RUN_SUFFIX}
 
 echo
 echo "bhyveucl exiting..."
