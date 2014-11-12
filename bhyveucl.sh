@@ -374,7 +374,7 @@ fi
 
 echo
 echo "Running bhyve:"
-${RUN_PREFIX} ${BHYVE_CMD} ${BHYVE_FLAGS} \
+eval ${RUN_PREFIX} ${BHYVE_CMD} ${BHYVE_FLAGS} \
 	-c ${VMCPUS} \
 	-l com1,${VMCONSOLE} \
 	-m ${VMMEMORY}M \
