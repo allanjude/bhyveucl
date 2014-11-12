@@ -36,7 +36,8 @@
 : ${BHYVE_LOAD_FLAGS=}
 : ${BHYVE_GRUB_CMD:=/usr/local/sbin/grub-bhyve}
 : ${BHYVE_GRUB_FLAGS=}
-
+: ${RUN_PREFIX:=}
+: ${RUN_SUFFIX:=}
 
 kldstat -n vmm > /dev/null 2>&1 
 if [ $? -ne 0 ]; then
@@ -346,27 +347,25 @@ fi
 
 if [ "$VMCONSOLE" != "stdio" ]; then
     # If using a serial console, send bhyve to the background
-    BHYVE_CMD="nohup ${BHYVE_CMD}"
+    RUN_PREFIX="nohup ${RUN_PREFIX}"
     RUN_SUFFIX="2>&1 > ${VMNAME}.out &"
 fi
 
 if [ $DEBUG -gt 0 ]; then
-    BHYVE_GRUB_CMD="echo ${BHYVE_GRUB_CMD}"
-    BHYVE_LOAD_CMD="echo ${BHYVE_LOAD_CMD}"
-    BHYVE_CMD="echo ${BHYVE_CMD}"
+    RUN_PREFIX="echo ${RUN_PREFIX}"
 fi
 
 echo
 if [ "$VMLOADER" = "grub-bhyve" ]; then
 	echo "Running grub-bhyve:"
 	echo printf "${VMLOADER_INPUT}" \| \
-		${BHYVE_GRUB_CMD} ${BHYVE_GRUB_FLAGS} \
+		${RUN_PREFIX} ${BHYVE_GRUB_CMD} ${BHYVE_GRUB_FLAGS} \
 		-M ${VMMEMORY}M \
 		${VMLOADER_ARGS} \
 		${VMNAME}
 else
 	echo "Running bhyveload:"
-	${BHYVE_LOAD_CMD} ${BHYVE_LOAD_FLAGS} \
+	${RUN_PREFIX} ${BHYVE_LOAD_CMD} ${BHYVE_LOAD_FLAGS} \
 		-c ${VMCONSOLE} \
 		-m ${VMMEMORY}M \
                 -d ${VMBOOTDISK} \
@@ -375,7 +374,7 @@ fi
 
 echo
 echo "Running bhyve:"
-${BHYVE_CMD} ${BHYVE_FLAGS} \
+${RUN_PREFIX} ${BHYVE_CMD} ${BHYVE_FLAGS} \
 	-c ${VMCPUS} \
 	-l com1,${VMCONSOLE} \
 	-m ${VMMEMORY}M \
@@ -385,7 +384,8 @@ ${BHYVE_CMD} ${BHYVE_FLAGS} \
 	${VMDEV} \
 	${VMNIC} \
 	${VMDISK} \
-	${VMNAME} ${RUN_SUFFIX}
+	${VMNAME} \
+	${RUN_SUFFIX}
 
 echo
 echo "bhyveucl exiting..."
