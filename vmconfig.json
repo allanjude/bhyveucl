@@ -1,55 +1,83 @@
 {
-	"name": "vm0001",
-	"uuid": "3af3d900-0447-4806-9058-416e493d12af",
-	"cpus": 4,
-	"memory": 4096,
-	"console": "/dev/nmdm0001A",
-	"loader": "bhyveload",
-	"loader_args": "",
-	"loader_input": "",
-	"disks": [
-	{
-		"type": "ahci-hd",
-		"path": "/dev/zvol/bsdb1/vm/vm0001/disks/disk0001"
-	},
-	{
-		"type": "virtio-blk",
-		"path": "/bsdb1/vm/vm0001/disks/img0002",
+	"guest": {
+		"name": "vm0001",
+		"uuid": "3af3d900-0447-4806-9058-416e493d12af",
+		"cpus": 4,
+		"memory": 4096,
+		"console": "/dev/nmdm0001A",
+		"loader": "bhyveload",
+		"loader_args": "",
+		"loader_input": "",
+		"disks": [
+		{
+			"type": "ahci-hd",
+			"path": "/dev/zvol/bsdb1/vm/vm0001/disks/disk0001"
+		},
+		{
+			"type": "virtio-blk",
+			"path": "/bsdb1/vm/vm0001/disks/img0002",
+			"flags": [
+				"ro"
+			]
+		}
+		],
+		"networks": [
+		{
+			"type": "virtio-net",
+			"name": "tap1001",
+			"mac": "58:9c:fc:04:8d:3b"
+		}
+		],
+		"devices": [
+		{
+			"slot": "0:0",
+			"type": "hostbridge"
+		},
+		{
+			"slot": "1:0",
+			"type": "lpc"
+		}
+		],
+		"features": [
+			"acpi",
+			"coredump",
+			"unhandledio",
+			"vmexithlt",
+			"vmexitpause",
+			"ignoremsr",
+			"singlevectormsi",
+			"x2apic",
+			"nomptable"
+		],
 		"flags": [
-			"ro"
+			{"g": "12345"},
+			{"p": ["0:3", "1:4"] }
 		]
-	}
-	],
-	"networks": [
-	{
-		"type": "virtio-net",
-		"name": "tap7",
-		"mac": "58:9c:fc:04:8d:3b"
-	}
-	],
-	"devices": [
-	{
-		"slot": "0:0",
-		"type": "hostbridge"
 	},
-	{
-		"slot": "1:0",
-		"type": "lpc"
+	"host:" {
+		"interfaces": {
+			"bridges": {
+				"bridge1001": {
+					"interfaces": [
+						"tap1001"
+						"vlan1001"
+					],
+					"state": "up",
+					"description": "VM bridge"
+				}
+			},
+			"vlans": {
+				"vlan1001": {
+					"vlanid": "1002",
+					"vlandev": "em0",
+					"description": "VM VLAN"
+				}
+			},
+			"taps": {
+				"tap1001": {
+					"state": "up"
+				}
+			}
+		}
 	}
-	],
-	"features": [
-		"acpi",
-		"coredump",
-		"unhandledio",
-		"vmexithlt",
-		"vmexitpause",
-		"ignoremsr",
-		"singlevectormsi",
-		"x2apic",
-		"nomptable"
-	],
-	"flags": [
-		{"g": "12345"},
-		{"p": ["0:3", "1:4"] }
-	]
 }
