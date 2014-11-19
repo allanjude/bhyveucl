@@ -1,5 +1,5 @@
 {
-	"host": {
+	"guest": {
 		"name": "vm0002",
 		"cpus": 2,
 		"memory": 2048,
