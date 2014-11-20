@@ -5,8 +5,15 @@
 		"memory": 2048,
 		"console": "/dev/nmdm0002A",
 		"loader": "grub-bhyve",
-		"loader_args": "-m linux.map -r hd0,msdos1",
-		"loader_input": "linux /vmlinuz-2.6.32-431.el6.x86_64 root=/dev/mapper/VolGroup-lv_root\\ninitrd /initramfs-2.6.32-431.el6.x86_64.img\\nboot\\n",
+		"loader_args": {
+			"device-map": "linux.map",
+			"root": "hd0,msdos1"
+		},
+		"loader_input": [
+			"linux /vmlinuz-2.6.32-431.el6.x86_64 root=/dev/mapper/VolGroup-lv_root",
+			"initrd /initramfs-2.6.32-431.el6.x86_64.img",
+			"boot"
+		],
 		"disks": [
 		{
 			"type": "ahci-hd",

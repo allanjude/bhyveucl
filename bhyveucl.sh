@@ -152,6 +152,25 @@ bhyve_parse_flags()
 	VMFLAGS="$flags"
 }
 
+bhyve_parse_loader_input()
+{
+	oIFS=$IFS
+	IFS=$'\n'
+	for line in $loader_input; do
+		VMLOADER_INPUT="${VMLOADER_INPUT} ${line}\\n"
+	done
+	IFS=$oIFS
+}
+
+bhyve_parse_loader_args()
+{
+	[ $num_loader_args -le 0 ] && return
+	for arg in $($UCL_CMD --file "$CONF" ".guest.loader_args|keys"); do
+		value=$($UCL_CMD --file "$CONF" ".guest.loader_args.${arg}")
+		VMLOADER_ARGS="${VMLOADER_ARGS} --${arg}=${value}"
+	done
+}
+
 bhyve_load_vars()
 {
 	local parse result
@@ -426,8 +445,9 @@ host_parse_destroy_interfaces() {
 }
 
 varlist="VMNAME VMUUID VMCPUS VMMEMORY VMCONSOLE \
-	VMBOOTDISK VMLOADER VMLOADER_ARGS VMLOADER_INPUT"
-allvarlist="${varlist} VMFEATURES VMFLAGS VMDEV VMNIC VMDISK"
+	VMBOOTDISK VMLOADER"
+allvarlist="${varlist} VMFEATURES VMFLAGS \
+	VMDEV VMNIC VMDISK VMLOADER_ARGS VMLOADER_INPUT"
 
 VMFEATURES=""
 VMFLAGS=""
@@ -439,7 +459,7 @@ VMDISK=""
 __SLOT=5
 
 bhyve_load_vars "$varlist" ".guest.name" ".guest.uuid" ".guest.cpus" ".guest.memory" ".guest.console" \
-	".guest.disks.${BOOTDISK}.path" ".guest.loader" ".guest.loader_args" ".guest.loader_input"
+	".guest.disks.${BOOTDISK}.path" ".guest.loader" 
 
 # Add flags for features
 features=$($UCL_CMD --file "$CONF" ".guest.features|values")
@@ -460,6 +480,14 @@ bhyve_parse_nic "networks" "$num_nic" "type name mac"
 # Add flags for disks
 num_disk=$($UCL_CMD --file "$CONF" ".guest.disks|length")
 bhyve_parse_disk "disks" "$num_disk" "type path"
+
+# Add flags to loader
+loader_input=$($UCL_CMD --file "$CONF" ".guest.loader_input|values")
+bhyve_parse_loader_input
+
+# Add args to loader
+num_loader_args=$($UCL_CMD --file "$CONF" ".guest.loader_args|length")
+bhyve_parse_loader_args
 
 if [ "$VMUUID" = "null" ]; then
 	VMUUID=$(/bin/uuidgen)
