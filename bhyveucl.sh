@@ -119,14 +119,14 @@ bhyve_parse_flags()
 	local flags type
 	[ $num_flags -le 0 ] && return
 	for n in $(jot $num_flags 0); do
-		type=$($UCL_CMD --file "$CONF" ".flags.${n}|each|type")
+		type=$($UCL_CMD --file "$CONF" ".guest.flags.${n}|each|type")
 		if [ "$type" = "string" ]; then
-			bhyve_load_vars "_key _value" ".flags.${n}|keys" ".flags.${n}|values"
+			bhyve_load_vars "_key _value" ".guest.flags.${n}|keys" ".guest.flags.${n}|values"
 			flags="${flags}-${_key} "${_value}" "
 		elif [ "$type" = "array" ]; then
-			_key=$($UCL_CMD --file "$CONF" ".flags.${n}|keys")
+			_key=$($UCL_CMD --file "$CONF" ".guest.flags.${n}|keys")
 			local parse
-			parse=$($UCL_CMD --file "$CONF" ".flags.${n}.${_key}|values")
+			parse=$($UCL_CMD --file "$CONF" ".guest.flags.${n}.${_key}|values")
 			oIFS=$IFS
 			IFS=$'\n'
 			for v in $parse; do
@@ -188,7 +188,7 @@ bhyve_parse_dev()
 		dlist=""
 		for v in $srcvlist; do
 			vlist="${vlist}bhyve_${tree}_${n}_${v} "
-			dlist="${dlist}.${tree}.${n}.${v} "
+			dlist="${dlist}.guest.${tree}.${n}.${v} "
 		done
 		vlist=${vlist%% }
 		dlist=${dlist%% }
@@ -223,7 +223,7 @@ bhyve_parse_nic()
 		dlist=""
 		for v in $srcvlist; do
 			vlist="${vlist}bhyve_${tree}_${n}_${v} "
-			dlist="${dlist}.${tree}.${n}.${v} "
+			dlist="${dlist}.guest.${tree}.${n}.${v} "
 		done
 		vlist=${vlist%% }
 		dlist=${dlist%% }
@@ -262,7 +262,7 @@ bhyve_parse_disk()
 		dlist=""
 		for v in $srcvlist; do
 			vlist="${vlist}bhyve_${tree}_${n}_${v} "
-			dlist="${dlist}.${tree}.${n}.${v} "
+			dlist="${dlist}.guest.${tree}.${n}.${v} "
 		done
 		vlist=${vlist%% }
 		dlist=${dlist%% }
@@ -304,27 +304,27 @@ VMDISK=""
 # Where to start auto-assigning slot numbers
 __SLOT=5
 
-bhyve_load_vars "$varlist" ".name" ".uuid" ".cpus" ".memory" ".console" \
-	".disks.${BOOTDISK}.path" ".loader" ".loader_args" ".loader_input" 
+bhyve_load_vars "$varlist" ".guest.name" ".guest.uuid" ".guest.cpus" ".guest.memory" ".guest.console" \
+	".guest.disks.${BOOTDISK}.path" ".guest.loader" ".guest.loader_args" ".guest.loader_input" 
 
 # Add flags for features
-features=$($UCL_CMD --file "$CONF" ".features|values")
+features=$($UCL_CMD --file "$CONF" ".guest.features|values")
 bhyve_parse_features $features
 
 # Add other flags
-num_flags=$($UCL_CMD --file "$CONF" ".flags|length")
+num_flags=$($UCL_CMD --file "$CONF" ".guest.flags|length")
 bhyve_parse_flags
 
 # Add flags for devices
-num_dev=$($UCL_CMD --file "$CONF" ".devices|length")
+num_dev=$($UCL_CMD --file "$CONF" ".guest.devices|length")
 bhyve_parse_dev "devices" "$num_dev" "slot type conf"
 
 # Add flags for network cards
-num_nic=$($UCL_CMD --file "$CONF" ".networks|length")
+num_nic=$($UCL_CMD --file "$CONF" ".guest.networks|length")
 bhyve_parse_nic "networks" "$num_nic" "type name mac"
 
 # Add flags for disks
-num_disk=$($UCL_CMD --file "$CONF" ".disks|length")
+num_disk=$($UCL_CMD --file "$CONF" ".guest.disks|length")
 bhyve_parse_disk "disks" "$num_disk" "type path"
 
 if [ "$VMUUID" = "null" ]; then
@@ -353,19 +353,27 @@ fi
 
 if [ $DEBUG -gt 0 ]; then
     RUN_PREFIX="echo ${RUN_PREFIX}"
+    # When debugging, don't redirect the output
+    RUN_SUFFIX=""
 fi
 
 echo
 if [ "$VMLOADER" = "grub-bhyve" ]; then
-	echo "Running grub-bhyve:"
-	echo printf "${VMLOADER_INPUT}" \| \
-		${RUN_PREFIX} ${BHYVE_GRUB_CMD} ${BHYVE_GRUB_FLAGS} \
+	if [ $DEBUG -gt 0 ]; then
+		echo "[Loader Input:]"
+		printf "${VMLOADER_INPUT}"
+		echo "[End of Loader Input]"
+		echo
+	fi
+	echo "[Running grub-bhyve:]"
+	printf "${VMLOADER_INPUT}" |
+		eval ${RUN_PREFIX} ${BHYVE_GRUB_CMD} ${BHYVE_GRUB_FLAGS} \
 		-M ${VMMEMORY}M \
 		${VMLOADER_ARGS} \
 		${VMNAME}
 else
-	echo "Running bhyveload:"
-	${RUN_PREFIX} ${BHYVE_LOAD_CMD} ${BHYVE_LOAD_FLAGS} \
+	echo "[Running bhyveload:]"
+	eval ${RUN_PREFIX} ${BHYVE_LOAD_CMD} ${BHYVE_LOAD_FLAGS} \
 		-c ${VMCONSOLE} \
 		-m ${VMMEMORY}M \
                 -d ${VMBOOTDISK} \
@@ -373,7 +381,7 @@ else
 fi
 
 echo
-echo "Running bhyve:"
+echo "[Running bhyve:]"
 eval ${RUN_PREFIX} ${BHYVE_CMD} ${BHYVE_FLAGS} \
 	-c ${VMCPUS} \
 	-l com1,${VMCONSOLE} \
@@ -388,5 +396,5 @@ eval ${RUN_PREFIX} ${BHYVE_CMD} ${BHYVE_FLAGS} \
 	${RUN_SUFFIX}
 
 echo
-echo "bhyveucl exiting..."
+echo "[bhyveucl exiting...]"
 echo
