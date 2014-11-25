@@ -41,14 +41,16 @@
 	},
 	"host": {
 		"interfaces": {
-			"bridges": {
-				"bridge1002": {
+			"bridges": [
+				{
+					"name": "bridge1002",
 					"interfaces": [
 					],
 					"state": "up",
 					"description": "blaaa"
 				},
-				"bridge1003": {
+				{
+					"name": "bridge1003",
 					"interfaces": [
 						"tap1002",
 						"tap1003"
@@ -56,21 +58,24 @@
 					"state": "up",
 					"description": "blaaa"
 				}
-			},
-			"vlans": {
-				"vlan1002": {
+			],
+			"vlans": [
+				{
+					"name": "vlan1002",
 					"vlanid": "1002",
 					"vlandev": "em0",
 					"description": "hostgroup XYZ"
 				}
-			},
-			"taps": {
-				"tap1002": {
+			],
+			"taps": [
+		       		{
+					"name": "tap1002",
 					"state": "up"
+				},
+				{
+					"name": "tap1003"
 				}
-				"tap1003": {
-				}
-			}
+			]
 		}
 	}
 }
