@@ -131,7 +131,7 @@ bhyve_parse_flags()
 	for n in $(jot $num_flags 0); do
 		type=$($UCL_CMD --file "$CONF" ".guest.flags.${n}|each|type")
 		if [ "$type" = "string" ]; then
-			bhyve_load_vars "_key _value" ".guest.flags.${n}|keys" ".flags.${n}|values"
+			bhyve_load_vars "_key _value" ".guest.flags.${n}|keys" ".guest.flags.${n}|values"
 			flags="${flags}-${_key} "${_value}" "
 		elif [ "$type" = "array" ]; then
 			_key=$($UCL_CMD --file "$CONF" ".guest.flags.${n}|keys")
@@ -496,24 +496,25 @@ fi
 
 if [ $DEBUG -gt 0 ]; then
     RUN_PREFIX="echo ${RUN_PREFIX}"
+    # When debugging, don't redirect the output
     RUN_SUFFIX="2\>\&1 \> ${VMNAME}.out \&"
 fi
 
 echo
-echo  "Creating network interfaces"
-echo  "         vlan   devices"
+echo  "[Creating network interfaces]"
+echo  "[         vlan   devices]"
 if [ $DEBUG -gt 0 ]; then
 	echo "$IFCFG_VLAN"
 else
 	eval "$IFCFG_VLAN"
 fi
-echo  "         tap    devices"
+echo  "[         tap    devices]"
 if [ $DEBUG -gt 0 ]; then
 	echo "$IFCFG_TAP"
 else
 	eval "$IFCFG_TAP"
 fi
-echo  "         bridge devices"
+echo  "[         bridge devices]"
 if [ $DEBUG -gt 0 ]; then
 	echo "$IFCFG_BRIDGE"
 else
@@ -522,15 +523,21 @@ fi
 
 echo
 if [ "$VMLOADER" = "grub-bhyve" ]; then
-	echo "Running grub-bhyve:"
-	echo printf "${VMLOADER_INPUT}" \| \
-		${RUN_PREFIX} ${BHYVE_GRUB_CMD} ${BHYVE_GRUB_FLAGS} \
+	if [ $DEBUG -gt 0 ]; then
+		echo "[Loader Input:]"
+		printf "${VMLOADER_INPUT}"
+		echo "[End of Loader Input]"
+		echo
+	fi
+	echo "[Running grub-bhyve:]"
+	printf "${VMLOADER_INPUT}" |
+		eval ${RUN_PREFIX} ${BHYVE_GRUB_CMD} ${BHYVE_GRUB_FLAGS} \
 		-M ${VMMEMORY}M \
 		${VMLOADER_ARGS} \
 		${VMNAME}
 else
-	echo "Running bhyveload:"
-	${RUN_PREFIX} ${BHYVE_LOAD_CMD} ${BHYVE_LOAD_FLAGS} \
+	echo "[Running bhyveload:]"
+	eval ${RUN_PREFIX} ${BHYVE_LOAD_CMD} ${BHYVE_LOAD_FLAGS} \
 		-c ${VMCONSOLE} \
 		-m ${VMMEMORY}M \
                 -d ${VMBOOTDISK} \
@@ -538,7 +545,7 @@ else
 fi
 
 echo
-echo "Running bhyve:"
+echo "[Running bhyve:]"
 eval ${RUN_PREFIX} ${BHYVE_CMD} ${BHYVE_FLAGS} \
 	-c ${VMCPUS} \
 	-l com1,${VMCONSOLE} \
@@ -554,9 +561,9 @@ eval ${RUN_PREFIX} ${BHYVE_CMD} ${BHYVE_FLAGS} \
 
 
 echo
-echo "To remove created network devices, use:"
+echo "[To remove created network devices, use:]"
 echo $IFCFG_DESTROY
 echo
 echo
-echo "bhyveucl exiting..."
+echo "[bhyveucl exiting...]"
 echo
