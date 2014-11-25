@@ -39,11 +39,21 @@
 : ${RUN_PREFIX:=}
 : ${RUN_SUFFIX:=}
 
-kldstat -n vmm > /dev/null 2>&1 
-if [ $? -ne 0 ]; then
-	echo "Error: vmm.ko is not loaded!"
-	exit 1
-fi
+module_loaded() {
+	local module
+	module="$1"
+	shift
+	kldstat -q -m $module > /dev/null 2>&1
+	if [ $? -ne 0 ]; then
+		echo "Error: $module is not loaded!"
+		exit 1
+	fi
+}
+
+module_loaded "vmm"
+module_loaded "if_tap"
+module_loaded "if_bridge"
+module_loaded "if_vlan"
 
 while getopts b:d: c ; do
         case $c in
@@ -275,7 +285,7 @@ bhyve_parse_disk()
 		eval _path="\$bhyve_${tree}_${n}_path"
 		_flags=$($UCL_CMD --file  "$CONF" ".${tree}.${n}.flags")
 		if [ "$_flags" != "null" ]; then
-			_flags=$($UCL_CMD --file "$CONF" ".${tree}.${n}.flags|values")
+			_flags=$($UCL_CMD --file "$CONF" ".guest.${tree}.${n}.flags|values")
 			_conf="${_path}"
 			for f in "$_flags"; do
 				_conf="${_conf},$f"
@@ -288,6 +298,129 @@ bhyve_parse_disk()
 		else
 			VMDISK="${VMDISK}-s ${_slot},${_type},${_conf} "
 		fi
+	done
+}
+
+host_parse_bridge()
+{
+	local numdev srcvlist tree
+	tree="$1"
+	numdev="$2"
+	srcvlist="$3"
+	vlist=""
+	shift 3
+	[ $numdev -le 0 ] && return
+	for n in $(jot $numdev 0); do
+		vlist=""
+		dlist=""
+		for v in $srcvlist; do
+			vlist="${vlist}host_${tree}_${n}_${v} "
+			dlist="${dlist}.host.interfaces.${tree}.${n}.${v} "
+		done
+		type=$($UCL_CMD --file "$CONF" ".host.interfaces.${tree}.${n}.interfaces|type")
+		if [ "$type" = "string" ]; then
+			bhyve_load_vars "_key _value" "host.interfaces.${tree}.${n}.interfaces|keys" ".host.interfaces.bridges.${n}.interfaces|values"
+			_interfaces="${_interfaces}${_key} "${_value}" "
+		elif [ "$type" = "array" ]; then
+			local parse
+			parse=$($UCL_CMD --file "$CONF" ".host.interfaces.bridges.${n}.interfaces|values")
+			oIFS=$IFS
+			IFS=$'\n'
+			for v in $parse; do
+				_interfaces="${_interfaces}addm "${v}" "
+			done
+			IFS=$oIFS
+		fi
+
+		vlist=${vlist%% }
+		dlist=${dlist%% }
+		bhyve_load_vars "$vlist" ${dlist}
+		eval _state="\$host_${tree}_${n}_state"
+		# Generate configuration
+		eval _name="\$host_${tree}_${n}_name"
+		IFCFG_BRIDGE="${IFCFG_BRIDGE}ifconfig ${_name} create ; "
+		if [ "$_state" = "null" ]; then
+			IFCFG_BRIDGE="${IFCFG_BRIDGE}ifconfig ${_name} ${_interfaces} up ; "
+		else
+			IFCFG_BRIDGE="${IFCFG_BRIDGE}ifconfig ${_name} ${_interfaces}${_state} ; "
+		fi
+	done
+}
+
+host_parse_vlan()
+{
+	local numdev srcvlist tree
+	tree="$1"
+	numdev="$2"
+	srcvlist="$3"
+	vlist=""
+	shift 3
+	[ $numdev -le 0 ] && return
+	for n in $(jot $numdev 0); do
+		vlist=""
+		dlist=""
+		for v in $srcvlist; do
+			vlist="${vlist}host_${tree}_${n}_${v} "
+			dlist="${dlist}.host.interfaces.${tree}.${n}.${v} "
+		done
+		vlist=${vlist%% }
+		dlist=${dlist%% }
+		bhyve_load_vars "$vlist" ${dlist}
+		# Generate configuration
+		eval _name="\$host_${tree}_${n}_name"
+		eval _vlanid="\$host_${tree}_${n}_vlanid"
+		eval _vlandev="\$host_${tree}_${n}_vlandev"
+		IFCFG_VLAN="${IFCFG_VLAN}ifconfig ${_name} create ; "
+		if [ "$_vlanid" != "null" -a "${_vlandev}" != "null" ]; then
+			IFCFG_VLAN="${IFCFG_VLAN}ifconfig ${_name} vlan ${_vlanid} vlandev ${_vlandev} up ; "
+		fi
+	done
+}
+
+host_parse_tap()
+{
+	local numdev srcvlist tree
+	tree="$1"
+	numdev="$2"
+	srcvlist="$3"
+	vlist=""
+	shift 3
+	[ $numdev -le 0 ] && return
+	for n in $(jot $numdev 0); do
+		vlist=""
+		dlist=""
+		for v in $srcvlist; do
+			vlist="${vlist}host_${tree}_${n}_${v} "
+			dlist="${dlist}.host.interfaces.${tree}.${n}.${v} "
+		done
+		vlist=${vlist%% }
+		dlist=${dlist%% }
+		bhyve_load_vars "$vlist" ${dlist}
+		# Generate configuration
+		eval _name="\$host_${tree}_${n}_name"
+		eval _state="\$host_${tree}_${n}_state"
+		IFCFG_TAP="${IFCFG_TAP}ifconfig ${_name} create ; "
+		if [ "$_state" = "null" ]; then
+			IFCFG_TAP="${IFCFG_TAP}ifconfig ${_name} up ; "
+		else
+			IFCFG_TAP="${IFCFG_TAP}ifconfig ${_name} ${_state} ; "
+		fi
+	done
+}
+
+host_parse_destroy_interfaces() {
+
+	for type in bridges vlans taps;
+	do
+		local parse
+		#echo $type
+		parse=$(${UCL_CMD} --file "$CONF" ".host.interfaces.${type}|each|.name")
+		oIFS=$IFS
+		IFS=$'\n'
+		for v in $parse; do
+			IFCFG_DESTROY="${IFCFG_DESTROY}ifconfig $v destroy ; "
+		done
+		IFS=$oIFS
 	done
 }
 
@@ -305,7 +438,7 @@ VMDISK=""
 __SLOT=5
 
 bhyve_load_vars "$varlist" ".guest.name" ".guest.uuid" ".guest.cpus" ".guest.memory" ".guest.console" \
-	".guest.disks.${BOOTDISK}.path" ".guest.loader" ".guest.loader_args" ".guest.loader_input" 
+	".guest.disks.${BOOTDISK}.path" ".guest.loader" ".guest.loader_args" ".guest.loader_input"
 
 # Add flags for features
 features=$($UCL_CMD --file "$CONF" ".guest.features|values")
@@ -330,13 +463,23 @@ bhyve_parse_disk "disks" "$num_disk" "type path"
 if [ "$VMUUID" = "null" ]; then
 	VMUUID=$(/bin/uuidgen)
 fi
+num_bridges=$($UCL_CMD --file "$CONF" ".host.interfaces.bridges|length")
+host_parse_bridge "bridges" "$num_bridges" "name interfaces state"
+
+num_vlans=$($UCL_CMD --file "$CONF" ".host.interfaces.vlans|length")
+host_parse_vlan "vlans" "$num_vlans" "name vlanid vlandev"
+
+num_taps=$($UCL_CMD --file "$CONF" ".host.interfaces.taps|length")
+host_parse_tap "taps" "$num_taps" "name state"
+
+host_parse_destroy_interfaces
 
 # Remove trailing spaces
 VMFEATURES=${VMFEATURES%% }
 VMFLAGS=${VMFLAGS%% }
-VMDEV=${VMDEV%% }
-VMNIC=${VMNIC%% }
-VMDISK=${VMDISK%% }
+MDEV=${VMDEV%% }
+MNIC=${VMNIC%% }
+MDISK=${VMDISK%% }
 
 if [ $DEBUG -gt 1 ]; then
 	for d in $allvarlist; do
@@ -354,7 +497,28 @@ fi
 if [ $DEBUG -gt 0 ]; then
     RUN_PREFIX="echo ${RUN_PREFIX}"
     # When debugging, don't redirect the output
-    RUN_SUFFIX=""
+    RUN_SUFFIX="2\>\&1 \> ${VMNAME}.out \&"
+fi
+
+echo
+echo  "[Creating network interfaces]"
+echo  "[         vlan   devices]"
+if [ $DEBUG -gt 0 ]; then
+	echo "$IFCFG_VLAN"
+else
+	eval "$IFCFG_VLAN"
+fi
+echo  "[         tap    devices]"
+if [ $DEBUG -gt 0 ]; then
+	echo "$IFCFG_TAP"
+else
+	eval "$IFCFG_TAP"
+fi
+echo  "[         bridge devices]"
+if [ $DEBUG -gt 0 ]; then
+	echo "$IFCFG_BRIDGE"
+else
+	eval "$IFCFG_BRIDGE"
 fi
 
 echo
@@ -395,6 +559,11 @@ eval ${RUN_PREFIX} ${BHYVE_CMD} ${BHYVE_FLAGS} \
 	${VMNAME} \
 	${RUN_SUFFIX}
 
+
+echo
+echo "[To remove created network devices, use:]"
+echo $IFCFG_DESTROY
+echo
 echo
 echo "[bhyveucl exiting...]"
 echo
