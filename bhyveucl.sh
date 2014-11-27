@@ -409,8 +409,11 @@ host_parse_tap()
 }
 
 host_parse_destroy_interfaces() {
+	local configured_interfaces:
 
-	for type in bridges vlans taps;
+	configured_interfaces=$(${UCL_CMD} --file "$CONF" ".host.interfaces|keys")
+	echo $configured_interfaces
+	for type in $configured_interfaces;
 	do
 		local parse
 		#echo $type
