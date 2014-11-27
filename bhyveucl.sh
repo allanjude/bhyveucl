@@ -464,16 +464,21 @@ bhyve_parse_disk "disks" "$num_disk" "type path"
 if [ "$VMUUID" = "null" ]; then
 	VMUUID=$(/bin/uuidgen)
 fi
-num_bridges=$($UCL_CMD --file "$CONF" ".host.interfaces.bridges|length")
-host_parse_bridge "bridges" "$num_bridges" "name interfaces state"
 
-num_vlans=$($UCL_CMD --file "$CONF" ".host.interfaces.vlans|length")
-host_parse_vlan "vlans" "$num_vlans" "name vlanid vlandev"
+if [ "$(${UCL_CMD} --file "${CONF}" '.host.interfaces')" = "{object}" ];
+then
+	HOST_INTERFACES=true
+	num_bridges=$($UCL_CMD --file "$CONF" ".host.interfaces.bridges|length")
+	host_parse_bridge "bridges" "$num_bridges" "name interfaces state"
 
-num_taps=$($UCL_CMD --file "$CONF" ".host.interfaces.taps|length")
-host_parse_tap "taps" "$num_taps" "name state"
+	num_vlans=$($UCL_CMD --file "$CONF" ".host.interfaces.vlans|length")
+	host_parse_vlan "vlans" "$num_vlans" "name vlanid vlandev"
 
-host_parse_destroy_interfaces
+	num_taps=$($UCL_CMD --file "$CONF" ".host.interfaces.taps|length")
+	host_parse_tap "taps" "$num_taps" "name state"
+
+	host_parse_destroy_interfaces
+fi
 
 # Remove trailing spaces
 VMFEATURES=${VMFEATURES%% }
@@ -501,25 +506,37 @@ if [ $DEBUG -gt 0 ]; then
     RUN_SUFFIX="2\>\&1 \> ${VMNAME}.out \&"
 fi
 
-echo
-echo  "[Creating network interfaces]"
-echo  "[         vlan   devices]"
-if [ $DEBUG -gt 0 ]; then
-	echo "$IFCFG_VLAN"
-else
-	eval "$IFCFG_VLAN"
-fi
-echo  "[         tap    devices]"
-if [ $DEBUG -gt 0 ]; then
-	echo "$IFCFG_TAP"
-else
-	eval "$IFCFG_TAP"
-fi
-echo  "[         bridge devices]"
-if [ $DEBUG -gt 0 ]; then
-	echo "$IFCFG_BRIDGE"
-else
-	eval "$IFCFG_BRIDGE"
+if [ "${HOST_INTERFACES}" = "true" ];
+then
+	echo
+	echo  "[Creating network interfaces]"
+	if [ "${num_vlans}" -gt 0 ]
+	then
+		echo  "[         vlan   devices]"
+		if [ $DEBUG -gt 0 ]; then
+			echo "$IFCFG_VLAN"
+		else
+			eval "$IFCFG_VLAN"
+		fi
+	fi
+	if [ "${num_taps}" -gt 0 ]
+	then
+		echo  "[         tap    devices]"
+		if [ $DEBUG -gt 0 ]; then
+			echo "$IFCFG_TAP"
+		else
+			eval "$IFCFG_TAP"
+		fi
+	fi
+	if [ "${num_bridges}" -gt 0 ]
+	then
+		echo  "[         bridge devices]"
+		if [ $DEBUG -gt 0 ]; then
+			echo "$IFCFG_BRIDGE"
+		else
+			eval "$IFCFG_BRIDGE"
+		fi
+	fi
 fi
 
 echo
@@ -560,11 +577,13 @@ eval ${RUN_PREFIX} ${BHYVE_CMD} ${BHYVE_FLAGS} \
 	${VMNAME} \
 	${RUN_SUFFIX}
 
-
-echo
-echo "[To remove created network devices, use:]"
-echo $IFCFG_DESTROY
-echo
+if [ "${HOST_INTERFACES}" = "true" ];
+then
+	echo
+	echo "[To remove created network devices, use:]"
+	echo $IFCFG_DESTROY
+	echo
+fi
 echo
 echo "[bhyveucl exiting...]"
 echo
