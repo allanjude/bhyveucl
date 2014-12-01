@@ -54,10 +54,11 @@
 			{"p": ["0:3", "1:4"] }
 		]
 	},
-	"host:" {
+	"host": {
 		"interfaces": {
-			"bridges": {
-				"bridge1001": {
+			"bridges": 
+			[	{
+				"name": "bridge1001",
 					"interfaces": [
 						"tap1001"
 						"vlan1001"
@@ -65,19 +66,21 @@
 					"state": "up",
 					"description": "VM bridge"
 				}
-			},
-			"vlans": {
-				"vlan1001": {
+			],
+			"vlans":[
+				       	{
+					"name":"vlan1001",
 					"vlanid": "1002",
 					"vlandev": "em0",
 					"description": "VM VLAN"
-				}
-			},
-			"taps": {
-				"tap1001": {
+					}
+				],
+			"taps": [
+				{
+					"name": "tap1001",
 					"state": "up"
 				}
-			}
+				]
 		}
 	}
 }
