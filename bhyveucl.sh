@@ -38,6 +38,7 @@
 : ${BHYVE_GRUB_FLAGS=}
 : ${RUN_PREFIX:=}
 : ${RUN_SUFFIX:=}
+: ${GRUB_RUN_PREFIX:=}
 
 module_loaded() {
 	local module
@@ -495,6 +496,8 @@ if [ $DEBUG -gt 1 ]; then
 fi
 
 if [ $DEBUG -gt 0 ]; then
+
+    GRUB_RUN_PREFIX="echo"
     RUN_PREFIX="echo ${RUN_PREFIX}"
     # When debugging, don't redirect the output
     RUN_SUFFIX="2\>\&1 \> ${VMNAME}.out \&"
@@ -543,7 +546,7 @@ if [ "$VMLOADER" = "grub-bhyve" ]; then
 	fi
 	echo "[Running grub-bhyve:]"
 	printf "${VMLOADER_INPUT}" |
-		eval ${RUN_PREFIX} ${BHYVE_GRUB_CMD} ${BHYVE_GRUB_FLAGS} \
+		eval ${GRUB_RUN_PREFIX} ${BHYVE_GRUB_CMD} ${BHYVE_GRUB_FLAGS} \
 		-M ${VMMEMORY}M \
 		${VMLOADER_ARGS} \
 		${VMNAME}
