@@ -345,12 +345,6 @@ if [ $DEBUG -gt 1 ]; then
 	done
 fi
 
-if [ "$VMCONSOLE" != "stdio" ]; then
-    # If using a serial console, send bhyve to the background
-    RUN_PREFIX="nohup ${RUN_PREFIX}"
-    RUN_SUFFIX="2>&1 > ${VMNAME}.out &"
-fi
-
 if [ $DEBUG -gt 0 ]; then
     RUN_PREFIX="echo ${RUN_PREFIX}"
     # When debugging, don't redirect the output
@@ -378,6 +372,17 @@ else
 		-m ${VMMEMORY}M \
                 -d ${VMBOOTDISK} \
 		${VMNAME}
+fi
+
+if [ "$VMCONSOLE" != "stdio" ]; then
+    # If using a serial console, send bhyve to the background
+    RUN_PREFIX="${RUN_PREFIX} nohup"
+    if [ $DEBUG -gt 0 ]; then
+	# When debugging, don't redirect the output
+	RUN_SUFFIX="2\>\&1 \> ${VMNAME}.out \&"
+    else
+	RUN_SUFFIX="2>&1 > ${VMNAME}.out &"
+    fi
 fi
 
 echo
