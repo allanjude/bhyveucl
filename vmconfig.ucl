@@ -1,81 +1,89 @@
 guest {
-	name = "vm0001";
-	uuid = "3af3d900-0447-4806-9058-416e493d12af";
-	cpus = 4;
-	memory = 4096;
-	console = "/dev/nmdm0001A";
-	loader = "bhyveload";
-	loader_args = "";
-	loader_input = "";
-	disks [
-		{
-			"type" = "ahci-hd";
-			"path" = "/dev/zvol/bsdb1/vm/vm0001/disks/disk0001";
-		}
-		{
-			"type" = "virtio-blk";
-			"path" = "/bsdb1/vm/vm0001/disks/img0002";
-			"flags" = [
-				"ro"
-			];
-		}
-	]
-	networks [
-		{
-			"type" = "virtio-net";
-			"name" = "tap1001";
-			"mac" = "58:9c:fc:04:8d:3b"
-		}
-	]
-	devices [
-		{
-		"slot" = "0:0";
-		"type" = "hostbridge";
-		}
-		{
-		"slot" = "1:0";
-		"type" = "lpc";
-		}
-	]
-	features = [
-		"acpi",
-		"coredump",
-		"unhandledio",
-		"vmexithlt",
-		"vmexitpause",
-		"ignoremsr",
-		"singlevectormsi",
-		"x2apic",
-		"nomptable",
-	];
+	name = "vm0001"
+	uuid = "3af3d900-0447-4806-9058-416e493d12af"
+	cpus = 4
+	memory = 4096
+	console = "/dev/nmdm0001A"
+	loader = "bhyveload"
+	loader_args = ""
+	loader_input = ""
+	disk {
+		type = "ahci-hd",
+		path = "/dev/zvol/bsdb1/vm/vm0001/disks/disk0001"
+	}
+	disk {
+		type = "virtio-blk",
+		path = "/bsdb1/vm/vm0001/disks/img0002",
+		flags = [
+			"ro"
+		]
+	}
+	network {
+		type = "virtio-net",
+		name = "tap1001",
+		mac = "58:9c:fc:04:8d:3b"
+	}
+	device {
+		slot = "0:0",
+		type = "hostbridge"
+	}
+	device {
+		slot = "1:0",
+		type = "lpc"
+	}
+	features = "acpi";
+	features = "coredump";
+	features = "unhandledio";
+	features = "vmexithlt";
+	features = "vmexitpause";
+	features = "ignoremsr";
+	features = "singlevectormsi";
+	features = "x2apic";
+	features = "nomptable";
 	flags = [
-		{"g" = "12345"};
-		{"p" = ["0:3"; "1:4"] }
+		{"g" = "12345"},
+		{"p" = ["0:3", "1:4"] }
 	]
 }
 host {
 	interfaces {
-		bridges {
-			bridge1001 {
-				members = [
-					"tap1001"
-					"vlan1001"
-				];
-				state = "up";
-				description = "VM bridge";
-			}
+		bridge {
+			name = "bridge1001",
+			interfaces = [
+				"tap1001"
+				"vlan50"
+			],
+			state = "up",
+			description = "VM bridge"
 		}
-		vlans {
-			vlan1001 {
-				vlanid = "1002";
-				vlandev = "em0";
-				description = "VM VLAN";
-			}
+		bridge {
+			name = "bridge1002",
+			interfaces = [
+				"tap1002"
+				"vlan1001"
+			],
+			state = "up",
+			description = "VM bridge"
 		}
-		taps {
-			tap1001 {
-				state = "up";
-			}
+		vlan {
+			name:"vlan50",
+			vlanid = "50",
+			vlandev = "em0",
+			description = "External VLAN"
+		}
+		vlan {
+			name = "vlan1001",
+			vlanid = "1001",
+			vlandev = "em1",
+			description = "Internal VLAN"
+		}
+		tap {
+			name = "tap1001",
+			state = "up"
+		}
+		tap {
+			name = "tap1002",
+			state = "up"
 		}
 	}
 }
