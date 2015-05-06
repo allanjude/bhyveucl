@@ -1,0 +1,18 @@
+name = "vm0001"
+uuid = "3af3d900-0447-4806-9058-416e493d12af"
+cpus = 4
+memory = 4096
+console = "/dev/nmdm0001A"
+disk {
+	type = "ahci-hd",
+	path = "/dev/zvol/bsdb1/vm/vm0001/disks/disk0001"
+	boot = true
+}
+disk {
+	type = "ahci-cd",
+	path = "/path/to/some.iso",
+	flags = "ro"
+}
+network {
+	name = "tap1001",
+}
